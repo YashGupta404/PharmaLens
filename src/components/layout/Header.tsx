@@ -46,11 +46,27 @@ export function Header() {
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="relative text-3xl group-hover:scale-110 transition-transform duration-300">
-              <span className="relative inline-block">
-                ❤️
-                <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[0.5em]">🤓</span>
-              </span>
+            <div className="relative group-hover:scale-110 transition-transform duration-300">
+              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Heart body */}
+                <path d="M20 35C20 35 5 25 5 14C5 8 9 4 14 4C17 4 19.5 6 20 8C20.5 6 23 4 26 4C31 4 35 8 35 14C35 25 20 35 20 35Z" fill="url(#heartGradient)" />
+                {/* Left eye */}
+                <circle cx="14" cy="16" r="3" fill="white" />
+                <circle cx="15" cy="16" r="1.5" fill="#1a1a2e" />
+                {/* Right eye */}
+                <circle cx="23" cy="16" r="3" fill="white" />
+                <circle cx="24" cy="16" r="1.5" fill="#1a1a2e" />
+                {/* Magnifying glass */}
+                <circle cx="32" cy="28" r="6" stroke="hsl(var(--accent))" strokeWidth="2.5" fill="hsl(var(--accent)/0.1)" />
+                <line x1="28" y1="32" x2="23" y2="37" stroke="hsl(var(--accent))" strokeWidth="2.5" strokeLinecap="round" />
+                {/* Gradient definition */}
+                <defs>
+                  <linearGradient id="heartGradient" x1="5" y1="4" x2="35" y2="35" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="hsl(var(--primary))" />
+                    <stop offset="1" stopColor="hsl(var(--accent))" />
+                  </linearGradient>
+                </defs>
+              </svg>
             </div>
             <div className="flex flex-col">
               <span className="font-display font-bold text-xl text-foreground">

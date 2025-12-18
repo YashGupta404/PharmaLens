@@ -1,73 +1,84 @@
-# Welcome to your Lovable project
+# PharmaLens
 
-## Project info
+🔬 **AI-Powered Prescription Scanner & Medicine Price Comparison Platform**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+PharmaLens is a full-stack web application that scans medical prescriptions and finds the cheapest available medicine prices across Indian pharmacies.
 
-## How can I edit this code?
+## 🏗️ Project Structure
 
-There are several ways of editing your application.
+```
+pharma-lens/
+├── frontend/          # React + Vite + TypeScript frontend
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── ...
+├── backend/           # Python FastAPI backend (coming soon)
+│   ├── app/
+│   ├── requirements.txt
+│   └── ...
+├── docker-compose.yml # Local development orchestration
+└── README.md
+```
 
-**Use Lovable**
+## 🚀 Features
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+### Phase 1 – Core MVP
+- ✅ Upload prescription image
+- 🔄 OCR text extraction
+- 🔄 Extract medicine names + dosage using AI/LLM
+- 🔄 Search prices across multiple pharmacy websites
+- 🔄 Compare prices + suggest cheapest option
+- 🔄 Show links + price breakdown
 
-Changes made via Lovable will be committed automatically to this repo.
+### Phase 2 – Agent Intelligence
+- 🔄 Extract generic alternatives
+- 🔄 Re-run search if medicine not found
+- 🔄 Retry failed websites and fallback sites
+- 🔄 Detect duplicates + filter noise
+- 🔄 Save search history
+- 🔄 Provide explanation for recommendation
 
-**Use your preferred IDE**
+Legend: ✅ Complete | 🔄 In Progress | ⏳ Planned
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## 🛠️ Tech Stack
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Frontend
+- **Framework**: React + Vite + TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **State Management**: TanStack Query
 
-Follow these steps:
+### Backend
+- **Framework**: FastAPI (Python)
+- **Authentication**: Firebase Auth
+- **Database**: Firestore
+- **OCR**: Tesseract / PaddleOCR
+- **AI/LLM**: OpenAI GPT
+- **Scraping**: Playwright / BeautifulSoup
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### DevOps
+- **Containerization**: Docker
+- **Frontend Hosting**: Vercel
+- **Backend Hosting**: AWS
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## 📦 Getting Started
 
-# Step 3: Install the necessary dependencies.
-npm i
+### Frontend
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+cd frontend
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Backend
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+cd backend
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
 
-**Use GitHub Codespaces**
+## 📄 License
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+MIT License

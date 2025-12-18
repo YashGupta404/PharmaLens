@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Pill, Menu, X, History, Sparkles, User, MapPin, Calendar, LogOut } from "lucide-react";
+import { Menu, X, History, Sparkles, User, MapPin, Calendar, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -46,11 +46,11 @@ export function Header() {
         <div className="flex items-center justify-between h-16 md:h-20">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="relative">
-              <div className="w-10 h-10 rounded-xl bg-gradient-hero flex items-center justify-center shadow-md group-hover:shadow-glow transition-shadow duration-300">
-                <Pill className="w-5 h-5 text-primary-foreground" />
-              </div>
-              <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent animate-pulse" />
+            <div className="relative text-3xl group-hover:scale-110 transition-transform duration-300">
+              <span className="relative inline-block">
+                ❤️
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 text-[0.5em]">🤓</span>
+              </span>
             </div>
             <div className="flex flex-col">
               <span className="font-display font-bold text-xl text-foreground">

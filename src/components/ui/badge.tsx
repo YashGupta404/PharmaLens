@@ -12,12 +12,22 @@ const badgeVariants = cva(
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",
+        // PharmaLens custom variants
+        success: "border-transparent bg-success text-success-foreground",
+        "success-light": "border-success/20 bg-success-light text-success",
+        warning: "border-transparent bg-warning text-warning-foreground",
+        "warning-light": "border-warning/20 bg-warning-light text-warning-foreground",
+        accent: "border-transparent bg-accent text-accent-foreground",
+        "accent-light": "border-accent/20 bg-accent-light text-accent",
+        primary: "border-transparent bg-primary text-primary-foreground",
+        "primary-light": "border-primary/20 bg-primary-light text-primary",
+        muted: "border-transparent bg-muted text-muted-foreground",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  },
+  }
 );
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof badgeVariants> {}

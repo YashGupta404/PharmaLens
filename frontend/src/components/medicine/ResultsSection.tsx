@@ -2,10 +2,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MedicineCard } from "./MedicineCard";
-import { 
-  TrendingDown, 
-  Package, 
-  Sparkles, 
+import {
+  TrendingDown,
+  Package,
+  Sparkles,
   ArrowRight,
   FileText,
   Loader2
@@ -38,8 +38,8 @@ export function ResultsSection({ results, status, extractedMedicines }: ResultsS
                   {status === 'processing' ? 'Processing Image...' : 'Extracting Medicines...'}
                 </h3>
                 <p className="text-muted-foreground mb-6">
-                  {status === 'processing' 
-                    ? 'Our AI is reading your prescription' 
+                  {status === 'processing'
+                    ? 'Our AI is reading your prescription'
                     : 'Identifying medicine names and dosages'}
                 </p>
 
@@ -72,8 +72,16 @@ export function ResultsSection({ results, status, extractedMedicines }: ResultsS
                   <Sparkles className="w-8 h-8 text-success" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Searching Pharmacies...</h3>
+
+                {/* Prominent wait message */}
+                <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
+                  <p className="text-lg font-bold text-warning-foreground">
+                    ⏳ Searching medicines on 4 platforms may take 30-60 seconds. Please wait...
+                  </p>
+                </div>
+
                 <p className="text-muted-foreground mb-6">
-                  Comparing prices across multiple pharmacies for the best deals
+                  Comparing prices across PharmEasy, 1mg, Netmeds & Apollo for the best deals
                 </p>
 
                 {/* Extracted Medicines */}

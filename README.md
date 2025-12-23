@@ -79,6 +79,21 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## ⚠️ Disclaimer
+
+> **EDUCATIONAL PROJECT ONLY**
+> 
+> This is a **non-commercial educational project** created for learning purposes. 
+> 
+> - All price data is sourced from **publicly available** pharmacy websites
+> - Data is used solely for **price comparison** to help users find affordable medicines
+> - This project does **NOT** store, redistribute, or commercially use any scraped data
+> - We access only publicly visible information that any user can see in their browser
+> - No login credentials, personal data, or protected content is accessed
+> 
+> **For Pharmacies:** If you represent one of the pharmacy websites and have concerns, please reach out. We respect your data and will comply with reasonable requests.
+
 ## 📄 License
 
 MIT License
+

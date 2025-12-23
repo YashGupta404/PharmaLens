@@ -9,6 +9,8 @@ from google.oauth2 import service_account
 from typing import Tuple, Optional, List, Dict, Any
 import httpx
 import os
+import base64
+import json
 
 from app.config import settings
 
@@ -25,17 +27,20 @@ def get_vision_client() -> vision.ImageAnnotatorClient:
     
     # Option 1: Base64 encoded credentials (for Render/cloud)
     base64_creds = os.environ.get("GOOGLE_CREDENTIALS_BASE64", "")
+    print(f"[OCR] GOOGLE_CREDENTIALS_BASE64 present: {bool(base64_creds)}, length: {len(base64_creds) if base64_creds else 0}")
+    
     if base64_creds:
         try:
             # Decode base64 to JSON
             creds_json = base64.b64decode(base64_creds).decode('utf-8')
             creds_dict = json.loads(creds_json)
+            print(f"[OCR] Successfully decoded Base64 credentials, project_id: {creds_dict.get('project_id', 'unknown')}")
             
             # Create credentials from dict
             credentials = service_account.Credentials.from_service_account_info(creds_dict)
             return vision.ImageAnnotatorClient(credentials=credentials)
         except Exception as e:
-            print(f"Failed to load Base64 credentials: {e}")
+            print(f"[OCR] Failed to load Base64 credentials: {e}")
     
     # Option 2: File path (for local development)
     credentials_path = settings.google_application_credentials

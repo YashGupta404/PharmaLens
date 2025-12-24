@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
-from app.dependencies import get_supabase_client
+from app.core.supabase import get_supabase_client
 from supabase import Client
 
 router = APIRouter(prefix="/history", tags=["history"])

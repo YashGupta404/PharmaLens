@@ -80,13 +80,17 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-1">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              How It Works
+            <Button variant="ghost" size="sm" className="gap-2" asChild>
+              <Link to="/how-it-works">
+                <Sparkles className="w-4 h-4" />
+                How It Works
+              </Link>
             </Button>
-            <Button variant="ghost" size="sm" className="gap-2">
-              <History className="w-4 h-4" />
-              Search History
+            <Button variant="ghost" size="sm" className="gap-2" asChild>
+              <Link to="/search-history">
+                <History className="w-4 h-4" />
+                Search History
+              </Link>
             </Button>
             <Badge variant="success-light" className="ml-2">
               100% Free
@@ -160,13 +164,17 @@ export function Header() {
       {isMobileMenuOpen && (
         <div className="md:hidden glass border-t border-border/50 animate-fade-in">
           <nav className="container mx-auto px-4 py-4 flex flex-col gap-2">
-            <Button variant="ghost" className="justify-start gap-2">
-              <Sparkles className="w-4 h-4" />
-              How It Works
+            <Button variant="ghost" className="justify-start gap-2" asChild>
+              <Link to="/how-it-works">
+                <Sparkles className="w-4 h-4" />
+                How It Works
+              </Link>
             </Button>
-            <Button variant="ghost" className="justify-start gap-2">
-              <History className="w-4 h-4" />
-              Search History
+            <Button variant="ghost" className="justify-start gap-2" asChild>
+              <Link to="/search-history">
+                <History className="w-4 h-4" />
+                Search History
+              </Link>
             </Button>
             <div className="h-px bg-border my-2" />
             {user ? (

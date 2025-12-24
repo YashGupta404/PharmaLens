@@ -69,6 +69,10 @@ app.include_router(prescriptions.router, prefix="/api/prescriptions", tags=["Pre
 app.include_router(search.router, prefix="/api/search", tags=["Search"])
 app.include_router(agent.router, prefix="/api/agent", tags=["AI Agent"])
 
+# Search History
+from app.api.routes import history
+app.include_router(history.router, prefix="/api", tags=["History"])
+
 # Multi-Agent System (CrewAI)
 from app.api.routes import crew
 app.include_router(crew.router, prefix="/api/crew", tags=["AI Crew"])

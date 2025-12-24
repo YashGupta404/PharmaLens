@@ -51,12 +51,12 @@ async def get_search_history(
             raise HTTPException(status_code=401, detail="Not authenticated")
         
         # Fetch search history
-        response = supabase.table("search_history") \\
-            .select("*") \\
-            .eq("user_id", user.user.id) \\
-            .order("created_at", desc=True) \\
-            .limit(limit) \\
-            .execute()
+        response = (supabase.table("search_history")
+            .select("*")
+            .eq("user_id", user.user.id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute())
         
         return response.data
         
@@ -85,9 +85,9 @@ async def save_search(
             **search.dict()
         }
         
-        response = supabase.table("search_history") \\
-            .insert(data) \\
-            .execute()
+        response = (supabase.table("search_history")
+            .insert(data)
+            .execute())
         
         if not response.data:
             raise HTTPException(status_code=500, detail="Failed to save search")
@@ -114,11 +114,11 @@ async def delete_search(
             raise HTTPException(status_code=401, detail="Not authenticated")
         
         # Delete search (RLS will ensure user owns it)
-        response = supabase.table("search_history") \\
-            .delete() \\
-            .eq("id", search_id) \\
-            .eq("user_id", user.user.id) \\
-            .execute()
+        response = (supabase.table("search_history")
+            .delete()
+            .eq("id", search_id)
+            .eq("user_id", user.user.id)
+            .execute())
         
         return {"success": True, "message": "Search deleted"}
         

@@ -27,14 +27,22 @@ export function Header() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Check if session is active (clears on browser close)
+    const sessionActive = sessionStorage.getItem("pharmalens_session");
     const storedUser = localStorage.getItem("pharmalens_user");
-    if (storedUser) {
+
+    if (sessionActive && storedUser) {
       setUser(JSON.parse(storedUser));
+    } else {
+      // No active session, clear user data
+      localStorage.removeItem("pharmalens_user");
+      setUser(null);
     }
   }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("pharmalens_user");
+    sessionStorage.removeItem("pharmalens_session");
     setUser(null);
     toast.success("Logged out successfully");
     navigate("/");

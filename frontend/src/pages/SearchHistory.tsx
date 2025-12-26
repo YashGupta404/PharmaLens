@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { History, Trash2, Search, Calendar, IndianRupee, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { getSession } from "@/lib/supabase";
 
 interface SearchHistoryItem {
     id: string;
@@ -22,23 +23,39 @@ interface SearchHistoryItem {
 const SearchHistory = () => {
     const [history, setHistory] = useState<SearchHistoryItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [token, setToken] = useState<string | null>(null);
     const navigate = useNavigate();
 
     useEffect(() => {
-        fetchHistory();
-    }, []);
-
-    const fetchHistory = async () => {
-        try {
-            // Get auth token from sessionStorage (set during login)
-            const token = sessionStorage.getItem('supabase_token') || localStorage.getItem('supabase_token');
-
-            if (!token) {
+        // Get auth token from Supabase session
+        const getAuthToken = async () => {
+            const { session, error } = await getSession();
+            if (error || !session) {
+                console.log("No session found, redirecting to auth");
                 toast.error("Please sign in to view search history");
                 navigate("/auth");
                 return;
             }
+            console.log("Session found, token:", session.access_token?.substring(0, 20) + "...");
+            setToken(session.access_token);
+        };
+        getAuthToken();
+    }, [navigate]);
 
+    useEffect(() => {
+        if (token) {
+            fetchHistory();
+        }
+    }, [token]);
+
+    const fetchHistory = async () => {
+        if (!token) {
+            setLoading(false);
+            return;
+        }
+
+        try {
+            console.log("Fetching history with token...");
             const response = await fetch(`${import.meta.env.VITE_API_URL}/history`, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
@@ -51,27 +68,32 @@ const SearchHistory = () => {
                 console.log("Search history loaded:", data);
                 setHistory(data);
             } else if (response.status === 401) {
-                toast.error("Please sign in to view search history");
+                toast.error("Session expired. Please sign in again.");
                 navigate("/auth");
             } else {
                 const errorText = await response.text();
                 console.error("Failed to load history:", response.status, errorText);
-                toast.error("Failed to load search history");
+                // Don't show error if table doesn't exist yet
+                if (!errorText.includes("search_history")) {
+                    toast.error("Failed to load search history");
+                }
             }
         } catch (error) {
             console.error("History fetch error:", error);
-            toast.error("Failed to load search history");
+            toast.error("Failed to connect to server");
         } finally {
             setLoading(false);
         }
     };
 
     const deleteSearch = async (id: string) => {
+        if (!token) return;
+
         try {
             const response = await fetch(`${import.meta.env.VITE_API_URL}/history/${id}`, {
                 method: 'DELETE',
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('supabase_token')}`
+                    'Authorization': `Bearer ${token}`
                 }
             });
 
@@ -146,7 +168,11 @@ const SearchHistory = () => {
                     ) : (
                         <div className="space-y-4">
                             {history.map((item) => (
-                                <Card key={item.id} className="hover:shadow-md transition-shadow">
+                                <Card key={item.id} className="hover:shadow-md transition-shadow cursor-pointer"
+                                    onClick={() => {
+                                        // TODO: Navigate to results page with this search
+                                        toast.info("Viewing saved search...");
+                                    }}>
                                     <CardHeader className="pb-3">
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1">
@@ -167,7 +193,10 @@ const SearchHistory = () => {
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                onClick={() => deleteSearch(item.id)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    deleteSearch(item.id);
+                                                }}
                                                 className="text-destructive hover:text-destructive"
                                             >
                                                 <Trash2 className="w-4 h-4" />

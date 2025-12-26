@@ -30,20 +30,36 @@ const SearchHistory = () => {
 
     const fetchHistory = async () => {
         try {
+            // Get auth token from sessionStorage (set during login)
+            const token = sessionStorage.getItem('supabase_token') || localStorage.getItem('supabase_token');
+
+            if (!token) {
+                toast.error("Please sign in to view search history");
+                navigate("/auth");
+                return;
+            }
+
             const response = await fetch(`${import.meta.env.VITE_API_URL}/history`, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('supabase_token')}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
 
             if (response.ok) {
                 const data = await response.json();
+                console.log("Search history loaded:", data);
                 setHistory(data);
             } else if (response.status === 401) {
                 toast.error("Please sign in to view search history");
                 navigate("/auth");
+            } else {
+                const errorText = await response.text();
+                console.error("Failed to load history:", response.status, errorText);
+                toast.error("Failed to load search history");
             }
         } catch (error) {
+            console.error("History fetch error:", error);
             toast.error("Failed to load search history");
         } finally {
             setLoading(false);

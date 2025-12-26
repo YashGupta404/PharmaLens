@@ -13,14 +13,14 @@ export function HeroSection({ onUploadClick }: HeroSectionProps) {
       <div className="absolute inset-0 -z-10">
         {/* Gradient Background */}
         <div className="absolute inset-0 bg-gradient-to-br from-primary-light via-background to-success-light opacity-60" />
-        
+
         {/* Animated Circles */}
         <div className="absolute top-20 left-10 w-72 h-72 rounded-full bg-primary/10 blur-3xl animate-float" />
         <div className="absolute bottom-20 right-10 w-96 h-96 rounded-full bg-success/10 blur-3xl animate-float delay-500" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-accent/5 blur-3xl" />
-        
+
         {/* Grid Pattern */}
-        <div 
+        <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, currentColor 1px, transparent 0)`,
@@ -50,8 +50,8 @@ export function HeroSection({ onUploadClick }: HeroSectionProps) {
 
           {/* Subheadline */}
           <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-8 animate-fade-in-up delay-200">
-            Upload your prescription and let our AI scan multiple pharmacies across India 
-            to find you the best deals. Compare prices, discover generic alternatives, 
+            Upload your prescription and let our AI scan multiple pharmacies across India
+            to find you the best deals. Compare prices, discover generic alternatives,
             and save money on every purchase.
           </p>
 
@@ -61,9 +61,11 @@ export function HeroSection({ onUploadClick }: HeroSectionProps) {
               <Upload className="w-5 h-5" />
               Upload Prescription
             </Button>
-            <Button variant="glass" size="xl" className="gap-2 w-full sm:w-auto">
-              <Sparkles className="w-5 h-5" />
-              See How It Works
+            <Button variant="glass" size="xl" className="gap-2 w-full sm:w-auto" asChild>
+              <a href="/how-it-works">
+                <Sparkles className="w-5 h-5" />
+                See How It Works
+              </a>
             </Button>
           </div>
 
@@ -91,8 +93,8 @@ export function HeroSection({ onUploadClick }: HeroSectionProps) {
               { value: "15+", label: "Pharmacies Compared" },
               { value: "4.9★", label: "User Rating" },
             ].map((stat, index) => (
-              <div 
-                key={index} 
+              <div
+                key={index}
                 className="p-4 rounded-xl glass border border-border/50"
               >
                 <div className="text-2xl md:text-3xl font-display font-bold text-gradient-hero">

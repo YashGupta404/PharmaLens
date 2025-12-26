@@ -30,7 +30,7 @@ class ApolloScraper(BaseScraper):
             with sync_playwright() as playwright:
                 browser = playwright.chromium.launch(
                     headless=True,
-                    args=["--no-sandbox", "--disable-dev-shm-usage"]
+                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
                 )
                 
                 context = browser.new_context(
@@ -38,12 +38,12 @@ class ApolloScraper(BaseScraper):
                 )
                 page = context.new_page()
                 
-                # Navigate and wait for products to load
-                page.goto(search_url, wait_until="networkidle", timeout=30000)
+                # Navigate and wait for JS to populate content (networkidle required for Apollo)
+                page.goto(search_url, wait_until="networkidle", timeout=25000)
                 
-                # Wait for product cards to appear
+                # Wait for product cards to have content
                 try:
-                    page.wait_for_selector("a.cardAnchorStyle", timeout=8000)
+                    page.wait_for_selector("a.cardAnchorStyle h2", timeout=5000)
                 except Exception:
                     print("Apollo: No product cards found")
                     context.close()

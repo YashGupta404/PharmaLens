@@ -25,11 +25,14 @@ class NetmedsScraper(BaseScraper):
             search_url = f"{self.base_url}/products?q={quote(query)}"
             
             with sync_playwright() as playwright:
-                browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
+                browser = playwright.chromium.launch(
+                    headless=True,
+                    args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"]
+                )
                 page = browser.new_page()
                 
-                page.goto(search_url, wait_until="networkidle", timeout=30000)
-                page.wait_for_timeout(3000)
+                page.goto(search_url, wait_until="domcontentloaded", timeout=20000)
+                page.wait_for_timeout(2000)
                 
                 # Extract from __INITIAL_STATE__
                 products = page.evaluate("""

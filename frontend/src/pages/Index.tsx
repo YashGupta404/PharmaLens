@@ -8,9 +8,8 @@ import { PharmaciesSection } from "@/components/sections/PharmaciesSection";
 import { ResultsSection } from "@/components/medicine/ResultsSection";
 import { ManualMedicineInput } from "@/components/medicine/ManualMedicineInput";
 import { AgentStatusPanel } from "@/components/medicine/AgentStatusPanel";
-import { SearchHistorySidebar } from "@/components/layout/SearchHistorySidebar";
 import { toast } from "sonner";
-import type { ScanStatus, MedicineSearchResult, SearchHistory } from "@/types/pharmalens";
+import type { ScanStatus, MedicineSearchResult } from "@/types/pharmalens";
 import type { AgentStatus } from "@/lib/api";
 
 // API imports
@@ -20,8 +19,6 @@ const Index = () => {
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [results, setResults] = useState<MedicineSearchResult[]>([]);
   const [extractedMedicines, setExtractedMedicines] = useState<string[]>([]);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [searchHistory, setSearchHistory] = useState<SearchHistory[]>([]);
   const [prescriptionId, setPrescriptionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isManualSearching, setIsManualSearching] = useState(false);
@@ -242,11 +239,7 @@ const Index = () => {
     }
   }, []);
 
-  const handleSelectHistory = useCallback((search: SearchHistory) => {
-    setIsHistoryOpen(false);
-    // TODO: Load saved results from API
-    toast.info('Loading search history...');
-  }, []);
+
 
   const handleReset = useCallback(() => {
     setScanStatus(null);
@@ -337,13 +330,6 @@ const Index = () => {
 
       <Footer />
 
-      {/* Search History Sidebar */}
-      <SearchHistorySidebar
-        isOpen={isHistoryOpen}
-        onClose={() => setIsHistoryOpen(false)}
-        history={searchHistory}
-        onSelectSearch={handleSelectHistory}
-      />
     </div>
   );
 };

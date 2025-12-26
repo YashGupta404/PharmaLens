@@ -1,30 +1,38 @@
-# PharmaLens Backend
+# PharmaLens Backend - Optimized for Render (512MB limit)
 
-## Requirements
+## Core
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
 python-dotenv>=1.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 email-validator>=2.1.0
-supabase>=2.3.0
-cloudinary>=1.38.0
-google-cloud-vision>=3.5.0
-google-generativeai>=0.3.0
-openai>=1.10.0
-playwright>=1.41.0
-beautifulsoup4>=4.12.0
-lxml>=4.9.0
-playwright>=1.40.0
 python-multipart>=0.0.6
 aiofiles>=23.2.0
 
-# AI Agent Tools (LangChain)
+## HTTP Client & Scraping
+httpx>=0.26.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+## Playwright for Netmeds & Apollo (runs one at a time via semaphore)
+playwright>=1.40.0
+
+## Database & Storage
+supabase>=2.3.0
+cloudinary>=1.38.0
+
+## AI Services
+google-cloud-vision>=3.5.0
+google-generativeai>=0.3.0
+openai>=1.10.0
+
+## AI Agents (Optional)
 langchain>=0.1.0
 langchain-groq>=0.0.1
 langchain-core>=0.1.0
-httpx>=0.26.0
 
-# Multi-Agent System (CrewAI)
-crewai>=0.1.0
-chromadb>=0.4.0
+# Memory optimization:
+# - PharmEasy & 1mg use HTTP (0 browser RAM)
+# - Netmeds & Apollo use Playwright but run ONE AT A TIME (max ~200MB)
+# - Total RAM usage: ~300-400MB (under Render's 512MB limit)

@@ -1,20 +1,15 @@
 """
-Search Routes
+Search Routes - NO HISTORY VERSION
 
-Handles medicine price search and comparison with history persistence.
-Includes SSE streaming for progressive results.
+Handles medicine price search and comparison.
+Search history has been removed to reduce complexity.
 """
 
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Any
 from datetime import datetime
-import json
-import asyncio
 
-from app.core.security import get_current_user_optional, OptionalUser, CurrentUser
-from app.core.supabase import save_search_history, get_user_search_history, get_search_by_id
 from app.services.price_search import search_medicine_prices, search_multiple_medicines
 
 
@@ -57,16 +52,6 @@ class SingleMedicineResponse(BaseModel):
     prices: List[Any]
     cheapest: Optional[Any]
     savings: float
-    search_id: Optional[str] = None
-
-
-class SearchHistoryItem(BaseModel):
-    """Search history entry."""
-    id: str
-    query: str
-    medicines_count: int
-    total_savings: float
-    created_at: datetime
 
 
 # ==============================================
@@ -74,47 +59,30 @@ class SearchHistoryItem(BaseModel):
 # ==============================================
 
 @router.post("/medicine")
-async def search_medicine(
-    request: SearchRequest,
-    current_user: OptionalUser = None
-):
+async def search_medicine(request: SearchRequest):
     """
     Search for a single medicine across all pharmacies.
     
-    Returns prices from 1mg, PharmEasy, and Netmeds with:
+    Returns prices from PharmEasy, 1mg, Netmeds, Apollo with:
     - Price comparison
     - Cheapest option highlighted
     - Potential savings calculated
+    
+    Average search time: 10-20 seconds
     """
-    search_id = f"search_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    print(f"\n[API] Search request: {request.medicine_name}")
     
     # Search across all pharmacies
     result = await search_medicine_prices(request.medicine_name, request.dosage)
     
-    # Save to history if user is authenticated
-    if current_user and result.get("success"):
-        try:
-            saved = await save_search_history(
-                user_id=current_user["id"],
-                prescription_url=None,
-                extracted_text=request.medicine_name,
-                medicines=[{"name": request.medicine_name, "dosage": request.dosage}],
-                results=result.get("prices", []),
-                total_savings=result.get("savings", 0)
-            )
-            search_id = saved.get("id", search_id)
-        except Exception as e:
-            print(f"Failed to save search history: {e}")
+    # Generate a simple search ID (no database storage)
+    result["search_id"] = f"search_{datetime.now().strftime('%Y%m%d%H%M%S')}"
     
-    result["search_id"] = search_id
     return result
 
 
 @router.post("/prescription/{prescription_id}")
-async def search_prescription_medicines(
-    prescription_id: str,
-    current_user: OptionalUser = None
-):
+async def search_prescription_medicines(prescription_id: str):
     """
     Search for all medicines from a prescription.
     
@@ -150,98 +118,10 @@ async def search_prescription_medicines(
     # Search all medicines
     result = await search_multiple_medicines(search_medicines)
     
-    # Save to history if user is authenticated
-    search_id = f"search_{prescription_id}"
-    if current_user and result.get("success"):
-        try:
-            saved = await save_search_history(
-                user_id=current_user["id"],
-                prescription_url=prescription.get("image_url"),
-                extracted_text=prescription.get("extracted_text", ""),
-                medicines=search_medicines,
-                results=result.get("results", []),
-                total_savings=result.get("total_savings", 0)
-            )
-            search_id = saved.get("id", search_id)
-        except Exception as e:
-            print(f"Failed to save search history: {e}")
-    
     # Update prescription status
     prescription["status"] = "search_completed"
     prescription["search_results"] = result
     
-    result["search_id"] = search_id
+    result["search_id"] = f"search_{prescription_id}"
     result["prescription_id"] = prescription_id
     return result
-
-
-@router.get("/history", response_model=List[SearchHistoryItem])
-async def get_search_history(
-    current_user: CurrentUser,
-    limit: int = 10
-):
-    """
-    Get user's search history.
-    Requires authentication.
-    """
-    try:
-        history = await get_user_search_history(current_user["id"], limit)
-        
-        items = []
-        for item in history:
-            medicines = item.get("medicines", [])
-            query = ", ".join([m.get("name", "") for m in medicines]) if medicines else "Unknown"
-            
-            items.append(SearchHistoryItem(
-                id=item["id"],
-                query=query[:100],
-                medicines_count=len(medicines),
-                total_savings=float(item.get("total_savings", 0)),
-                created_at=item.get("created_at", datetime.now())
-            ))
-        
-        return items
-        
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch search history: {str(e)}"
-        )
-
-
-@router.get("/history/{search_id}")
-async def get_search_details(
-    search_id: str,
-    current_user: CurrentUser
-):
-    """
-    Get details of a specific search.
-    Requires authentication.
-    """
-    try:
-        search = await get_search_by_id(search_id)
-        
-        if not search:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Search not found"
-            )
-        
-        if search.get("user_id") != current_user["id"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Access denied"
-            )
-        
-        return {
-            "success": True,
-            "search": search
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch search details: {str(e)}"
-        )

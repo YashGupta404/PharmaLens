@@ -1,8 +1,12 @@
 """
-Price Search Service - FAST VERSION
+Price Search Service - OPTIMIZED VERSION
 
-Searches all 4 pharmacies and returns results as fast as possible.
-Shows console logs for debugging.
+Strategy:
+- PharmEasy + 1mg: HTTP (fast, instant results)
+- Netmeds + Apollo: Playwright (one at a time to save RAM)
+- All run in parallel, results shown as they arrive
+- Semaphore limits Playwright to 1 concurrent browser (saves RAM)
+- Medicine names are cleaned and normalized for better matches
 """
 
 from typing import List, Optional, Dict, Any
@@ -10,20 +14,28 @@ from datetime import datetime
 import asyncio
 
 from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper, ApolloScraper, ScrapedPrice
+from app.services.medicine_utils import clean_medicine_name, get_search_query, get_alternative_names
+
+# Semaphore to limit Playwright browsers to 1 at a time (saves ~200MB RAM)
+PLAYWRIGHT_SEMAPHORE = asyncio.Semaphore(1)
 
 
 class PriceSearchService:
     """Service for searching medicine prices across 4 pharmacies."""
     
     def __init__(self):
-        print("[PriceSearch] Initializing 4 scrapers...")
-        self.scrapers = [
-            PharmEasyScraper(),   # HTTP - FASTEST
-            OneMgScraper(),       # Playwright
+        print("[PriceSearch] Initializing scrapers...")
+        # HTTP scrapers (fast, no browser)
+        self.http_scrapers = [
+            PharmEasyScraper(),   # HTTP
+            OneMgScraper(),       # HTTP
+        ]
+        # Playwright scrapers (need browser, run one at a time)
+        self.playwright_scrapers = [
             NetmedsScraper(),     # Playwright
             ApolloScraper(),      # Playwright
         ]
-        print(f"[PriceSearch] Ready: PharmEasy, 1mg, Netmeds, Apollo")
+        print(f"[PriceSearch] Ready: PharmEasy, 1mg (HTTP) | Netmeds, Apollo (Playwright)")
     
     async def search_medicine(
         self, 
@@ -32,44 +44,33 @@ class PriceSearchService:
     ) -> Dict[str, Any]:
         """
         Search for a medicine across all 4 pharmacies.
-        Runs PharmEasy first (fast), then others in parallel.
+        HTTP scrapers run freely, Playwright scrapers limited to 1 at a time.
         """
+        # Clean and optimize the search query
+        original_name = medicine_name
+        search_query = get_search_query(medicine_name, dosage)
+        alternatives = get_alternative_names(medicine_name)
+        
         print(f"\n{'='*60}")
-        print(f"[SEARCH] Starting search for: {medicine_name}")
+        print(f"[SEARCH] Original: {original_name}")
+        print(f"[SEARCH] Optimized query: {search_query}")
+        if alternatives:
+            print(f"[SEARCH] Known alternatives: {', '.join(alternatives[:3])}")
         print(f"{'='*60}")
         
         all_prices = []
         pharmacy_results = {}
         errors = []
         
-        # First: Search PharmEasy (HTTP, super fast)
-        print(f"\n[1/4] PharmEasy (HTTP - fast)...")
-        try:
-            pharmeasy_result = await asyncio.wait_for(
-                self._search_pharmacy(self.scrapers[0], medicine_name, dosage),
-                timeout=30.0
-            )
-            if pharmeasy_result:
-                print(f"[PharmEasy] ✅ Found {len(pharmeasy_result)} results")
-                pharmacy_results["pharmeasy"] = pharmeasy_result
-                all_prices.extend(pharmeasy_result)
-            else:
-                print(f"[PharmEasy] ⚠️ No results")
-        except asyncio.TimeoutError:
-            print(f"[PharmEasy] ⏱️ Timeout after 30s")
-            errors.append({"pharmacy": "PharmEasy", "error": "Timeout"})
-        except Exception as e:
-            print(f"[PharmEasy] ❌ Error: {str(e)[:50]}")
-            errors.append({"pharmacy": "PharmEasy", "error": str(e)})
+        start_time = datetime.now()
         
-        # Then: Search other 3 in parallel (Playwright-based)
-        print(f"\n[2-4/4] Searching 1mg, Netmeds, Apollo in parallel...")
-        
-        async def search_with_timeout(scraper, timeout=45):
+        async def search_http(scraper, query, timeout=15):
+            """Search using HTTP scraper (no semaphore needed)."""
             name = scraper.pharmacy_name
             try:
+                print(f"[{name}] Starting HTTP search...")
                 result = await asyncio.wait_for(
-                    self._search_pharmacy(scraper, medicine_name, dosage),
+                    scraper.search(query, None),  # Query already includes dosage
                     timeout=timeout
                 )
                 if result:
@@ -85,10 +86,48 @@ class PriceSearchService:
                 print(f"[{name}] ❌ Error: {str(e)[:50]}")
                 return (scraper.pharmacy_id, [], str(e))
         
-        # Run 1mg, Netmeds, Apollo in parallel
-        tasks = [search_with_timeout(s) for s in self.scrapers[1:]]
+        async def search_playwright(scraper, query, timeout=30):
+            """Search using Playwright scraper (limited by semaphore)."""
+            name = scraper.pharmacy_name
+            try:
+                # Wait for semaphore - only 1 Playwright browser at a time
+                async with PLAYWRIGHT_SEMAPHORE:
+                    print(f"[{name}] Starting Playwright search...")
+                    result = await asyncio.wait_for(
+                        scraper.search(query, None),  # Query already includes dosage
+                        timeout=timeout
+                    )
+                    if result:
+                        print(f"[{name}] ✅ Found {len(result)} results")
+                        return (scraper.pharmacy_id, result, None)
+                    else:
+                        print(f"[{name}] ⚠️ No results")
+                        return (scraper.pharmacy_id, [], None)
+            except asyncio.TimeoutError:
+                print(f"[{name}] ⏱️ Timeout after {timeout}s")
+                return (scraper.pharmacy_id, [], "Timeout")
+            except Exception as e:
+                print(f"[{name}] ❌ Error: {str(e)[:50]}")
+                return (scraper.pharmacy_id, [], str(e))
+        
+        # Create all tasks
+        print(f"\n[SEARCH] Launching all 4 pharmacy searches...")
+        
+        tasks = []
+        # HTTP scrapers - no limit
+        for scraper in self.http_scrapers:
+            tasks.append(search_http(scraper, search_query, timeout=15))
+        # Playwright scrapers - limited by semaphore
+        for scraper in self.playwright_scrapers:
+            tasks.append(search_playwright(scraper, search_query, timeout=30))
+        
+        # Run all in parallel (semaphore handles Playwright limiting)
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
+        elapsed = (datetime.now() - start_time).total_seconds()
+        print(f"\n[SEARCH] All searches completed in {elapsed:.1f}s")
+        
+        # Process results
         for result in results:
             if isinstance(result, tuple):
                 pharmacy_id, prices, error = result
@@ -97,9 +136,11 @@ class PriceSearchService:
                     all_prices.extend(prices)
                 if error:
                     errors.append({"pharmacy": pharmacy_id, "error": error})
+            elif isinstance(result, Exception):
+                print(f"[SEARCH] Task exception: {result}")
         
         # Calculate best price
-        print(f"\n[SEARCH] Complete. Total results: {len(all_prices)}")
+        print(f"[SEARCH] Total results: {len(all_prices)}")
         
         cheapest = None
         savings = 0.0
@@ -111,27 +152,22 @@ class PriceSearchService:
                 cheapest = sorted_prices[0]
                 most_expensive = sorted_prices[-1]
                 savings = most_expensive.price - cheapest.price
-                print(f"[SEARCH] Cheapest: ₹{cheapest.price} | Savings: ₹{savings}")
+                print(f"[SEARCH] Cheapest: ₹{cheapest.price} | Savings: ₹{savings:.2f}")
         
         return {
             "success": True,
-            "medicine_name": medicine_name,
+            "medicine_name": original_name,
+            "search_query": search_query,
+            "alternatives": alternatives[:3] if alternatives else None,
             "dosage": dosage,
             "total_results": len(all_prices),
             "pharmacies_searched": ["PharmEasy", "1mg", "Netmeds", "Apollo"],
             "prices": [self._price_to_dict(p, pid) for pid, prices in pharmacy_results.items() for p in prices],
             "cheapest": self._price_to_dict(cheapest) if cheapest else None,
             "savings": round(savings, 2),
+            "search_time_seconds": round(elapsed, 1),
             "errors": errors if errors else None
         }
-    
-    async def _search_pharmacy(self, scraper, medicine_name: str, dosage: Optional[str]) -> List[ScrapedPrice]:
-        """Search a single pharmacy."""
-        try:
-            return await scraper.search_with_retry(medicine_name, dosage, max_retries=1)
-        except Exception as e:
-            print(f"[{scraper.pharmacy_name}] Search error: {e}")
-            return []
     
     def _price_to_dict(self, price: ScrapedPrice, pharmacy_id: str = None) -> Dict[str, Any]:
         """Convert ScrapedPrice to dictionary."""

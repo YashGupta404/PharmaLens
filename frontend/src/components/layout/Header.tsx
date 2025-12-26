@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Menu, X, History, Sparkles, User, MapPin, Calendar, LogOut } from "lucide-react";
+import { Menu, X, Sparkles, User, MapPin, Calendar, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 
@@ -94,12 +94,6 @@ export function Header() {
                 How It Works
               </Link>
             </Button>
-            <Button variant="ghost" size="sm" className="gap-2" asChild>
-              <Link to="/search-history">
-                <History className="w-4 h-4" />
-                Search History
-              </Link>
-            </Button>
             <Badge variant="success-light" className="ml-2">
               100% Free
             </Badge>
@@ -176,12 +170,6 @@ export function Header() {
               <Link to="/how-it-works">
                 <Sparkles className="w-4 h-4" />
                 How It Works
-              </Link>
-            </Button>
-            <Button variant="ghost" className="justify-start gap-2" asChild>
-              <Link to="/search-history">
-                <History className="w-4 h-4" />
-                Search History
               </Link>
             </Button>
             <div className="h-px bg-border my-2" />

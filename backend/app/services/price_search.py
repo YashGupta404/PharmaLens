@@ -1,15 +1,12 @@
 """
-Price Search Service
+Price Search Service - SIMPLE VERSION
 
-Aggregates medicine prices from all pharmacy scrapers.
-PROGRESSIVE LOADING: Returns results as each pharmacy completes.
-SEQUENTIAL for low memory: Runs one Playwright scraper at a time.
+Direct pharmacy scraping without streaming (more reliable on Render).
 """
 
-from typing import List, Optional, Dict, Any, AsyncGenerator
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 import asyncio
-import json
 
 from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper, ApolloScraper, ScrapedPrice
 
@@ -18,41 +15,36 @@ class PriceSearchService:
     """Service for searching and comparing medicine prices across 4 pharmacies."""
     
     def __init__(self):
-        # Only 4 pharmacies - Truemeds removed (too slow/unreliable)
-        # Order: HTTP first (fast), then Playwright scrapers
+        print("[PriceSearch] Initializing scrapers...")
         self.scrapers = [
-            PharmEasyScraper(),   # HTTP - Fast, runs first
-            OneMgScraper(),       # Playwright - PRELOADED_STATE
-            NetmedsScraper(),     # Playwright - __INITIAL_STATE__
-            ApolloScraper(),      # Playwright - DOM
+            PharmEasyScraper(),   # HTTP - Fast
+            OneMgScraper(),       # Playwright
+            NetmedsScraper(),     # Playwright
+            ApolloScraper(),      # Playwright
         ]
+        print(f"[PriceSearch] Initialized {len(self.scrapers)} scrapers")
     
-    async def search_medicine_stream(
+    async def search_medicine(
         self, 
         medicine_name: str, 
         dosage: Optional[str] = None
-    ) -> AsyncGenerator[Dict[str, Any], None]:
+    ) -> Dict[str, Any]:
         """
-        Stream search results as each pharmacy completes.
-        SEQUENTIAL execution to avoid memory issues on Render's 512MB limit.
+        Search for a medicine across all pharmacies.
+        SEQUENTIAL execution to save memory on Render.
         """
+        print(f"\n{'='*50}")
+        print(f"[PriceSearch] Starting search for: {medicine_name}")
+        print(f"{'='*50}")
+        
         all_prices = []
-        completed_pharmacies = []
         pharmacy_results = {}
         errors = []
-        total_pharmacies = len(self.scrapers)
         
-        # Yield initial status
-        yield {
-            "type": "started",
-            "medicine_name": medicine_name,
-            "total_pharmacies": total_pharmacies,
-            "pharmacies": [s.pharmacy_name for s in self.scrapers],
-            "message": f"Starting search across {total_pharmacies} pharmacies..."
-        }
-        
-        # Run scrapers SEQUENTIALLY to save memory
-        for scraper in self.scrapers:
+        for i, scraper in enumerate(self.scrapers):
+            pharmacy_name = scraper.pharmacy_name
+            print(f"\n[{i+1}/{len(self.scrapers)}] Searching {pharmacy_name}...")
+            
             try:
                 # 60 second timeout per pharmacy
                 result = await asyncio.wait_for(
@@ -60,64 +52,24 @@ class PriceSearchService:
                     timeout=60.0
                 )
                 
-                completed_pharmacies.append(scraper.pharmacy_name)
-                remaining = total_pharmacies - len(completed_pharmacies)
+                count = len(result) if result else 0
+                print(f"[{pharmacy_name}] ✅ Found {count} results")
                 
                 if result:
                     pharmacy_results[scraper.pharmacy_id] = result
                     all_prices.extend(result)
-                
-                # Yield this pharmacy's results
-                yield {
-                    "type": "pharmacy_result",
-                    "pharmacy": scraper.pharmacy_name,
-                    "pharmacy_id": scraper.pharmacy_id,
-                    "results_count": len(result) if result else 0,
-                    "prices": [self._price_to_dict(p, scraper.pharmacy_id) for p in result] if result else [],
-                    "error": None,
-                    "completed": len(completed_pharmacies),
-                    "remaining": remaining,
-                    "completed_pharmacies": completed_pharmacies.copy(),
-                    "message": f"✅ {scraper.pharmacy_name} complete ({len(result) if result else 0} results). {remaining} pharmacies remaining..." if remaining > 0 else f"✅ All {total_pharmacies} pharmacies searched!"
-                }
-                
+                    
             except asyncio.TimeoutError:
-                completed_pharmacies.append(scraper.pharmacy_name)
-                remaining = total_pharmacies - len(completed_pharmacies)
-                errors.append({"pharmacy": scraper.pharmacy_name, "error": "Timeout after 60s"})
-                
-                yield {
-                    "type": "pharmacy_result",
-                    "pharmacy": scraper.pharmacy_name,
-                    "pharmacy_id": scraper.pharmacy_id,
-                    "results_count": 0,
-                    "prices": [],
-                    "error": "Timeout after 60s",
-                    "completed": len(completed_pharmacies),
-                    "remaining": remaining,
-                    "completed_pharmacies": completed_pharmacies.copy(),
-                    "message": f"⚠️ {scraper.pharmacy_name} timed out. {remaining} pharmacies remaining..."
-                }
+                print(f"[{pharmacy_name}] ⚠️ TIMEOUT after 60s")
+                errors.append({"pharmacy": pharmacy_name, "error": "Timeout"})
                 
             except Exception as e:
-                completed_pharmacies.append(scraper.pharmacy_name)
-                remaining = total_pharmacies - len(completed_pharmacies)
-                errors.append({"pharmacy": scraper.pharmacy_name, "error": str(e)})
-                
-                yield {
-                    "type": "pharmacy_result",
-                    "pharmacy": scraper.pharmacy_name,
-                    "pharmacy_id": scraper.pharmacy_id,
-                    "results_count": 0,
-                    "prices": [],
-                    "error": str(e),
-                    "completed": len(completed_pharmacies),
-                    "remaining": remaining,
-                    "completed_pharmacies": completed_pharmacies.copy(),
-                    "message": f"⚠️ {scraper.pharmacy_name} error. {remaining} pharmacies remaining..."
-                }
+                print(f"[{pharmacy_name}] ❌ ERROR: {str(e)[:100]}")
+                errors.append({"pharmacy": pharmacy_name, "error": str(e)})
         
-        # Calculate final results
+        # Calculate results
+        print(f"\n[PriceSearch] Search complete. Total results: {len(all_prices)}")
+        
         cheapest = None
         most_expensive = None
         savings = 0.0
@@ -130,37 +82,20 @@ class PriceSearchService:
                 cheapest = valid_prices[0]
                 most_expensive = valid_prices[-1]
                 savings = most_expensive.price - cheapest.price if len(valid_prices) > 1 else 0
+                print(f"[PriceSearch] Cheapest: ₹{cheapest.price} at {cheapest.product_url[:30] if cheapest.product_url else 'Unknown'}")
+                print(f"[PriceSearch] Potential savings: ₹{savings}")
         
-        # Yield final complete response
-        yield {
-            "type": "complete",
+        return {
             "success": True,
             "medicine_name": medicine_name,
             "dosage": dosage,
             "total_results": len(all_prices),
             "pharmacies_searched": [s.pharmacy_name for s in self.scrapers],
-            "completed_pharmacies": completed_pharmacies,
             "prices": [self._price_to_dict(p, s) for s, prices in pharmacy_results.items() for p in prices],
             "cheapest": self._price_to_dict(cheapest) if cheapest else None,
             "savings": round(savings, 2),
-            "errors": errors if errors else None,
-            "message": f"Search complete! Found {len(all_prices)} results from {len(completed_pharmacies)} pharmacies."
+            "errors": errors if errors else None
         }
-    
-    async def search_medicine(
-        self, 
-        medicine_name: str, 
-        dosage: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """
-        Search for a medicine across all pharmacies.
-        Returns final aggregated result (non-streaming).
-        """
-        final_result = None
-        async for result in self.search_medicine_stream(medicine_name, dosage):
-            if result.get("type") == "complete":
-                final_result = result
-        return final_result or {"success": False, "error": "Search failed"}
     
     async def _search_with_pharmacy(
         self, 
@@ -168,11 +103,11 @@ class PriceSearchService:
         medicine_name: str, 
         dosage: Optional[str]
     ) -> List[ScrapedPrice]:
-        """Search a single pharmacy with error handling."""
+        """Search a single pharmacy."""
         try:
             return await scraper.search_with_retry(medicine_name, dosage, max_retries=1)
         except Exception as e:
-            print(f"Error searching {scraper.pharmacy_name}: {e}")
+            print(f"[{scraper.pharmacy_name}] Search error: {e}")
             return []
     
     def _price_to_dict(self, price: ScrapedPrice, pharmacy_id: str = None) -> Dict[str, Any]:
@@ -214,18 +149,24 @@ class PriceSearchService:
         self, 
         medicines: List[Dict[str, str]]
     ) -> Dict[str, Any]:
-        """Search prices for multiple medicines."""
+        """Search prices for multiple medicines sequentially."""
+        print(f"\n[PriceSearch] Searching {len(medicines)} medicines...")
+        
         results = []
         total_savings = 0.0
         
-        for medicine in medicines:
+        for i, medicine in enumerate(medicines):
             name = medicine.get("name", "")
             dosage = medicine.get("dosage")
             if not name:
                 continue
+            
+            print(f"\n[Medicine {i+1}/{len(medicines)}] {name}")
             result = await self.search_medicine(name, dosage)
             results.append(result)
             total_savings += result.get("savings", 0)
+        
+        print(f"\n[PriceSearch] All medicines searched. Total savings: ₹{total_savings}")
         
         return {
             "success": True,
@@ -250,21 +191,13 @@ async def search_medicine_prices(
     dosage: Optional[str] = None
 ) -> Dict[str, Any]:
     """Convenience function to search medicine prices."""
+    print(f"[API] search_medicine_prices called for: {medicine_name}")
     service = await get_price_search_service()
     return await service.search_medicine(medicine_name, dosage)
 
 
-async def search_medicine_prices_stream(
-    medicine_name: str,
-    dosage: Optional[str] = None
-) -> AsyncGenerator[Dict[str, Any], None]:
-    """Stream medicine price search results progressively."""
-    service = await get_price_search_service()
-    async for result in service.search_medicine_stream(medicine_name, dosage):
-        yield result
-
-
 async def search_multiple_medicines(medicines: List[Dict[str, str]]) -> Dict[str, Any]:
     """Convenience function to search multiple medicines."""
+    print(f"[API] search_multiple_medicines called for {len(medicines)} medicines")
     service = await get_price_search_service()
     return await service.search_multiple_medicines(medicines)

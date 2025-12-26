@@ -8,27 +8,17 @@ import {
   Sparkles,
   ArrowRight,
   FileText,
-  Loader2,
-  CheckCircle2
+  Loader2
 } from "lucide-react";
 import type { MedicineSearchResult, ScanStatus } from "@/types/pharmalens";
-
-interface PharmacyStatus {
-  name: string;
-  completed: boolean;
-  resultsCount: number;
-}
 
 interface ResultsSectionProps {
   results: MedicineSearchResult[];
   status: ScanStatus;
   extractedMedicines: string[];
-  completedPharmacies?: string[];
-  remainingPharmacies?: number;
-  streamMessage?: string;
 }
 
-export function ResultsSection({ results, status, extractedMedicines, completedPharmacies = [], remainingPharmacies = 0, streamMessage }: ResultsSectionProps) {
+export function ResultsSection({ results, status, extractedMedicines }: ResultsSectionProps) {
   const totalSavings = results.reduce((acc, r) => acc + (r.savings || 0), 0);
   const medicinesCount = results.length;
   const cheapestOptions = results.filter(r => r.cheapestPrice).length;
@@ -85,44 +75,27 @@ export function ResultsSection({ results, status, extractedMedicines, completedP
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Searching Pharmacies...</h3>
 
-                {/* Stream message */}
-                {streamMessage && (
-                  <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 mb-4 w-full">
-                    <p className="text-sm font-medium text-primary">
-                      {streamMessage}
-                    </p>
-                  </div>
-                )}
-
-                {/* Progress indicator */}
+                {/* Wait message */}
                 <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4 w-full">
                   <p className="text-lg font-bold text-warning-foreground">
-                    ⏳ {completedPharmacies.length}/{allPharmacies.length} pharmacies searched
-                    {remainingPharmacies > 0 && ` - ${remainingPharmacies} remaining...`}
+                    ⏳ Please wait 1-5 minutes...
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Searching PharmEasy, 1mg, Netmeds & Apollo for best prices
                   </p>
                 </div>
 
-                {/* Pharmacy Status Grid */}
-                <div className="w-full grid grid-cols-2 md:grid-cols-5 gap-2 mb-6">
-                  {allPharmacies.map((pharmacy) => {
-                    const isComplete = completedPharmacies.includes(pharmacy);
-                    return (
-                      <div
-                        key={pharmacy}
-                        className={`p-2 rounded-lg border text-sm flex items-center justify-center gap-1 ${isComplete
-                          ? 'bg-success/10 border-success/30 text-success'
-                          : 'bg-muted/50 border-border text-muted-foreground'
-                          }`}
-                      >
-                        {isComplete ? (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ) : (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        )}
-                        {pharmacy}
-                      </div>
-                    );
-                  })}
+                {/* Pharmacy Grid */}
+                <div className="w-full grid grid-cols-4 gap-2 mb-6">
+                  {['PharmEasy', '1mg', 'Netmeds', 'Apollo'].map((pharmacy) => (
+                    <div
+                      key={pharmacy}
+                      className="p-2 rounded-lg border text-sm flex items-center justify-center gap-1 bg-muted/50 border-border text-muted-foreground"
+                    >
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      {pharmacy}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Extracted Medicines */}

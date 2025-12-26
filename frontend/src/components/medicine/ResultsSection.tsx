@@ -76,7 +76,7 @@ export function ResultsSection({ results, status, extractedMedicines }: ResultsS
                 {/* Prominent wait message */}
                 <div className="bg-warning/10 border border-warning/30 rounded-lg p-4 mb-4">
                   <p className="text-lg font-bold text-warning-foreground">
-                    ⏳ Searching medicines on 4 platforms may take 30-60 seconds. Please wait...
+                    ⏳ Searching medicines on 4 platforms may take 1-3 minutes. Please wait...
                   </p>
                 </div>
 

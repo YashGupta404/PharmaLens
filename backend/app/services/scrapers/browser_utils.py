@@ -11,7 +11,7 @@ import asyncio
 import json
 
 
-async def get_page_with_js(url: str, wait_selector: str = None, timeout: int = 15000) -> Dict[str, Any]:
+async def get_page_with_js(url: str, wait_selector: str = None, timeout: int = 10000) -> Dict[str, Any]:
     """
     Fetch a page with JavaScript rendering using Playwright.
     
@@ -48,7 +48,7 @@ async def get_page_with_js(url: str, wait_selector: str = None, timeout: int = 1
         # Wait for content if selector provided
         if wait_selector:
             try:
-                await page.wait_for_selector(wait_selector, timeout=5000)
+                await page.wait_for_selector(wait_selector, timeout=3000)
             except Exception:
                 pass
         
@@ -170,12 +170,12 @@ async def extract_products_from_page(url: str, selectors: Dict[str, str]) -> Lis
         )
         page = await context.new_page()
         
-        await page.goto(url, wait_until="networkidle", timeout=15000)
+        await page.goto(url, wait_until="networkidle", timeout=10000)
         
         # Wait for product container
         container = selectors.get("container", ".product-card")
         try:
-            await page.wait_for_selector(container, timeout=5000)
+            await page.wait_for_selector(container, timeout=3000)
         except Exception:
             pass
         

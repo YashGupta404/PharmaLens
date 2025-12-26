@@ -3,6 +3,7 @@ Price Search Service
 
 Aggregates medicine prices from all pharmacy scrapers.
 Provides price comparison, ranking, and savings calculation.
+OPTIMIZED for Render deployment - parallel execution with timeouts.
 """
 
 from typing import List, Optional, Dict, Any
@@ -13,7 +14,7 @@ from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper
 
 
 class PriceSearchService:
-    """Service for searching and comparing medicine prices across 5 pharmacies."""
+    """Service for searching and comparing medicine prices across pharmacies."""
     
     def __init__(self):
         self.scrapers = [
@@ -30,7 +31,7 @@ class PriceSearchService:
         dosage: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Search for a medicine across all pharmacies.
+        Search for a medicine across all pharmacies IN PARALLEL.
         
         Args:
             medicine_name: Name of the medicine
@@ -39,40 +40,38 @@ class PriceSearchService:
         Returns:
             Dict with prices from all pharmacies, cheapest option, and savings
         """
-        # Search all pharmacies - run in batches to avoid Playwright conflicts
-        # PharmEasy uses HTTP (fast), others use Playwright
         all_prices = []
         pharmacy_results = {}
         errors = []
         
-        # Batch 1: HTTP-based scrapers (fast)
-        http_scrapers = [self.scrapers[0]]  # PharmEasy
-        # Batch 2: Playwright-based scrapers (run in thread pools for uvicorn compatibility)
-        playwright_scrapers = self.scrapers[1:]  # 1mg, Netmeds, Apollo, Truemeds
-        
-        # First, run HTTP scrapers
-        for scraper in http_scrapers:
+        # Create search tasks for ALL scrapers
+        async def search_scraper(scraper):
             try:
-                result = await self._search_with_pharmacy(scraper, medicine_name, dosage)
-                if result:
-                    pharmacy_results[scraper.pharmacy_id] = result
-                    all_prices.extend(result)
+                # Use asyncio.wait_for with strict timeout (60 seconds per scraper)
+                result = await asyncio.wait_for(
+                    self._search_with_pharmacy(scraper, medicine_name, dosage),
+                    timeout=60.0
+                )
+                return (scraper, result, None)
+            except asyncio.TimeoutError:
+                return (scraper, [], f"Timeout after 60s")
             except Exception as e:
-                errors.append({"pharmacy": scraper.pharmacy_name, "error": str(e)})
+                return (scraper, [], str(e))
         
-        # Then run Playwright scrapers SEQUENTIALLY for maximum stability
-        # Each uses asyncio.to_thread for uvicorn compatibility
-        for scraper in playwright_scrapers:
-            try:
-                result = await self._search_with_pharmacy(scraper, medicine_name, dosage)
-                if result:
-                    pharmacy_results[scraper.pharmacy_id] = result
-                    all_prices.extend(result)
-            except Exception as e:
-                errors.append({
-                    "pharmacy": scraper.pharmacy_name,
-                    "error": str(e)
-                })
+        # Run ALL scrapers in parallel
+        tasks = [search_scraper(s) for s in self.scrapers]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Process results
+        for result in results:
+            if isinstance(result, Exception):
+                continue
+            scraper, prices, error = result
+            if error:
+                errors.append({"pharmacy": scraper.pharmacy_name, "error": error})
+            elif prices:
+                pharmacy_results[scraper.pharmacy_id] = prices
+                all_prices.extend(prices)
         
         # Find cheapest and calculate savings
         cheapest = None
@@ -107,9 +106,10 @@ class PriceSearchService:
         medicine_name: str, 
         dosage: Optional[str]
     ) -> List[ScrapedPrice]:
-        """Search a single pharmacy with error handling."""
+        """Search a single pharmacy with error handling - reduced retries for speed."""
         try:
-            return await scraper.search_with_retry(medicine_name, dosage)
+            # Only 1 retry for faster results
+            return await scraper.search_with_retry(medicine_name, dosage, max_retries=1)
         except Exception as e:
             print(f"Error searching {scraper.pharmacy_name}: {e}")
             return []
@@ -158,7 +158,7 @@ class PriceSearchService:
         medicines: List[Dict[str, str]]
     ) -> Dict[str, Any]:
         """
-        Search prices for multiple medicines.
+        Search prices for multiple medicines - ALL IN PARALLEL.
         
         Args:
             medicines: List of dicts with 'name' and 'dosage'
@@ -166,24 +166,30 @@ class PriceSearchService:
         Returns:
             Dict with results for each medicine and total savings
         """
-        results = []
-        total_savings = 0.0
-        
-        for medicine in medicines:
+        # Run all medicine searches in parallel
+        async def search_one(medicine):
             name = medicine.get("name", "")
             dosage = medicine.get("dosage")
-            
             if not name:
+                return None
+            return await self.search_medicine(name, dosage)
+        
+        tasks = [search_one(m) for m in medicines]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Filter and process results
+        valid_results = []
+        total_savings = 0.0
+        for result in results:
+            if isinstance(result, Exception) or result is None:
                 continue
-            
-            result = await self.search_medicine(name, dosage)
-            results.append(result)
+            valid_results.append(result)
             total_savings += result.get("savings", 0)
         
         return {
             "success": True,
-            "medicines_count": len(results),
-            "results": results,
+            "medicines_count": len(valid_results),
+            "results": valid_results,
             "total_savings": round(total_savings, 2)
         }
     

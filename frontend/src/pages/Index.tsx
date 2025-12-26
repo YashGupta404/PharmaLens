@@ -14,7 +14,7 @@ import type { ScanStatus, MedicineSearchResult, SearchHistory } from "@/types/ph
 import type { AgentStatus } from "@/lib/api";
 
 // API imports
-import { processPrescription, searchMedicine } from "@/lib/api";
+import { processPrescription, searchMedicine, searchMedicineStream, StreamEvent } from "@/lib/api";
 
 const Index = () => {
   const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
@@ -26,6 +26,10 @@ const Index = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isManualSearching, setIsManualSearching] = useState(false);
   const [agentUpdates, setAgentUpdates] = useState<AgentStatus[]>([]);
+  // Progressive pharmacy search state
+  const [completedPharmacies, setCompletedPharmacies] = useState<string[]>([]);
+  const [remainingPharmacies, setRemainingPharmacies] = useState<number>(0);
+  const [streamMessage, setStreamMessage] = useState<string>('');
   const uploadSectionRef = useRef<HTMLDivElement>(null);
 
   const scrollToUpload = useCallback(() => {
@@ -171,6 +175,7 @@ const Index = () => {
   }, []);
 
   // Handle manual medicine search (bypasses OCR/AI, goes straight to scrapers)
+  // Uses streaming to show results as each pharmacy completes
   const handleManualSearch = useCallback(async (medicines: string[]) => {
     console.log("Manual search for medicines:", medicines);
     setIsManualSearching(true);
@@ -178,59 +183,111 @@ const Index = () => {
     setResults([]);
     setExtractedMedicines(medicines);
     setScanStatus('searching');
+    setCompletedPharmacies([]);
+    setRemainingPharmacies(5); // 5 pharmacies total
+    setStreamMessage('Starting search...');
 
     try {
       toast.info(`Searching prices for ${medicines.length} medicine(s)...`);
 
-      // Search each medicine in parallel
-      const searchPromises = medicines.map(med => searchMedicine(med));
-      const searchResults = await Promise.all(searchPromises);
+      // For multiple medicines, search each one with streaming
+      // Accumulate all prices as they come in
+      const allPrices: any[] = [];
+      let allCompletedPharmacies: string[] = [];
 
-      // Convert to frontend format
-      const formattedResults: MedicineSearchResult[] = searchResults.map((r: any) => ({
-        medicine: {
-          id: r.search_id || `med_${Date.now()}_${Math.random()}`,
-          name: r.medicine_name || 'Unknown',
-          genericName: r.cheapest?.generic_name || '',
-          dosage: r.dosage || '',
-          form: 'tablet',
-          manufacturer: '',
-          composition: r.cheapest?.generic_name || '',
-          isGeneric: false,
-        },
-        prices: (r.prices || []).map((p: any, idx: number) => ({
-          pharmacyId: p.pharmacy_id || `pharmacy_${Date.now()}_${idx}`,
-          pharmacyName: p.pharmacy_name || 'Unknown',
-          pharmacyLogo: '',
-          price: p.price || 0,
-          originalPrice: p.original_price,
-          discount: p.discount,
-          packSize: p.pack_size || '1 Unit',
-          inStock: p.in_stock !== false,
-          deliveryDays: p.delivery_days || 2,
-          url: p.url || '#',
-          lastUpdated: new Date(),
-        })),
-        cheapestPrice: r.cheapest ? {
-          pharmacyId: r.cheapest.pharmacy_id,
-          pharmacyName: r.cheapest.pharmacy_name,
-          pharmacyLogo: '',
-          price: r.cheapest.price || 0,
-          packSize: r.cheapest.pack_size || '1 Unit',
-          inStock: r.cheapest.in_stock !== false,
-          url: r.cheapest.url || '#',
-          lastUpdated: new Date(),
-        } : undefined,
-        genericAlternatives: [],
-        savings: r.savings || 0,
-      }));
+      for (const med of medicines) {
+        await searchMedicineStream(
+          med,
+          (event: StreamEvent) => {
+            // Handle streaming events
+            if (event.type === 'started') {
+              setStreamMessage(event.message || 'Connecting to pharmacies...');
+            } else if (event.type === 'pharmacy_result') {
+              // Update completed pharmacies
+              if (event.completed_pharmacies) {
+                setCompletedPharmacies([...event.completed_pharmacies]);
+                allCompletedPharmacies = event.completed_pharmacies;
+              }
+              setRemainingPharmacies(event.remaining || 0);
+              setStreamMessage(event.message || '');
+
+              // Add prices to running total
+              if (event.prices && event.prices.length > 0) {
+                allPrices.push(...event.prices);
+              }
+            } else if (event.type === 'complete') {
+              setStreamMessage(event.message || 'Search complete!');
+            } else if (event.type === 'error') {
+              console.error('Stream error:', event.error);
+            }
+          }
+        );
+      }
+
+      // Final results from accumulated prices
+      const formattedResults: MedicineSearchResult[] = medicines.map((medName, index) => {
+        // Get prices for this medicine
+        const medicinePrices = allPrices.filter(p =>
+          p.product_name?.toLowerCase().includes(medName.toLowerCase().split(' ')[0])
+        );
+
+        const cheapest = medicinePrices.length > 0
+          ? medicinePrices.reduce((min, p) => p.price < min.price ? p : min)
+          : null;
+
+        const mostExpensive = medicinePrices.length > 0
+          ? medicinePrices.reduce((max, p) => p.price > max.price ? p : max)
+          : null;
+
+        const savings = cheapest && mostExpensive
+          ? mostExpensive.price - cheapest.price
+          : 0;
+
+        return {
+          medicine: {
+            id: `med_${Date.now()}_${index}`,
+            name: medName,
+            genericName: '',
+            dosage: '',
+            form: 'tablet',
+            manufacturer: '',
+            composition: '',
+            isGeneric: false,
+          },
+          prices: medicinePrices.map((p: any, idx: number) => ({
+            pharmacyId: p.pharmacy_id || `pharmacy_${Date.now()}_${idx}`,
+            pharmacyName: p.pharmacy_name || 'Unknown',
+            pharmacyLogo: '',
+            price: p.price || 0,
+            originalPrice: p.original_price,
+            discount: p.discount,
+            packSize: p.pack_size || '1 Unit',
+            inStock: p.in_stock !== false,
+            deliveryDays: p.delivery_days || 2,
+            url: p.url || '#',
+            lastUpdated: new Date(),
+          })),
+          cheapestPrice: cheapest ? {
+            pharmacyId: cheapest.pharmacy_id,
+            pharmacyName: cheapest.pharmacy_name,
+            pharmacyLogo: '',
+            price: cheapest.price || 0,
+            packSize: cheapest.pack_size || '1 Unit',
+            inStock: cheapest.in_stock !== false,
+            url: cheapest.url || '#',
+            lastUpdated: new Date(),
+          } : undefined,
+          genericAlternatives: [],
+          savings: savings,
+        };
+      });
 
       setResults(formattedResults);
       setScanStatus('completed');
       setIsManualSearching(false);
 
       const totalSavings = formattedResults.reduce((sum, r) => sum + (r.savings || 0), 0);
-      toast.success(`Found prices! Potential savings: ₹${totalSavings.toFixed(0)}`);
+      toast.success(`Found prices from ${allCompletedPharmacies.length} pharmacies! Potential savings: ₹${totalSavings.toFixed(0)}`);
 
     } catch (error) {
       console.error("Manual search error:", error);
@@ -324,6 +381,9 @@ const Index = () => {
             results={results}
             status={scanStatus}
             extractedMedicines={extractedMedicines}
+            completedPharmacies={completedPharmacies}
+            remainingPharmacies={remainingPharmacies}
+            streamMessage={streamMessage}
           />
         )}
 

@@ -157,6 +157,96 @@ export async function searchMedicine(
 }
 
 /**
+ * Search for medicine prices with streaming (SSE)
+ * Receives results progressively as each pharmacy completes
+ */
+export interface StreamEvent {
+    type: 'started' | 'pharmacy_result' | 'complete' | 'error';
+    pharmacy?: string;
+    pharmacy_id?: string;
+    results_count?: number;
+    prices?: PharmacyPrice[];
+    completed?: number;
+    remaining?: number;
+    completed_pharmacies?: string[];
+    message?: string;
+    error?: string;
+    // Final complete data
+    success?: boolean;
+    medicine_name?: string;
+    total_results?: number;
+    pharmacies_searched?: string[];
+    cheapest?: PharmacyPrice | null;
+    savings?: number;
+}
+
+export async function searchMedicineStream(
+    medicineName: string,
+    onEvent: (event: StreamEvent) => void,
+    dosage?: string
+): Promise<SearchResult | null> {
+    const url = `${API_BASE_URL}/search/medicine/stream?medicine_name=${encodeURIComponent(medicineName)}${dosage ? `&dosage=${encodeURIComponent(dosage)}` : ''}`;
+
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'text/event-stream',
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            throw new Error('No response body');
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let finalResult: SearchResult | null = null;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+
+            // Process complete SSE events
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+
+                // Parse SSE data
+                const dataMatch = line.match(/^data: (.+)$/m);
+                if (dataMatch) {
+                    try {
+                        const event: StreamEvent = JSON.parse(dataMatch[1]);
+                        onEvent(event);
+
+                        // Store final result
+                        if (event.type === 'complete') {
+                            finalResult = event as unknown as SearchResult;
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse SSE event:', e);
+                    }
+                }
+            }
+        }
+
+        return finalResult;
+    } catch (error) {
+        console.error('Stream search error:', error);
+        onEvent({ type: 'error', error: String(error) });
+        return null;
+    }
+}
+
+/**
  * Search prices for all medicines in a prescription
  */
 export async function searchPrescription(prescriptionId: string): Promise<PrescriptionSearchResult> {

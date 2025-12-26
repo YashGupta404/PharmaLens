@@ -2,13 +2,13 @@
 Price Search Service
 
 Aggregates medicine prices from all pharmacy scrapers.
-Provides price comparison, ranking, and savings calculation.
-OPTIMIZED for Render deployment - parallel execution with timeouts.
+PROGRESSIVE LOADING: Returns results as each pharmacy completes.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, AsyncGenerator
 from datetime import datetime
 import asyncio
+import json
 
 from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper, ApolloScraper, TruemedsScraper, ScrapedPrice
 
@@ -25,61 +25,118 @@ class PriceSearchService:
             TruemedsScraper()     # Playwright - DOM (best prices!)
         ]
     
-    async def search_medicine(
+    async def search_medicine_stream(
         self, 
         medicine_name: str, 
         dosage: Optional[str] = None
-    ) -> Dict[str, Any]:
+    ) -> AsyncGenerator[Dict[str, Any], None]:
         """
-        Search for a medicine across all pharmacies IN PARALLEL.
-        
-        Args:
-            medicine_name: Name of the medicine
-            dosage: Optional dosage specification
-        
-        Returns:
-            Dict with prices from all pharmacies, cheapest option, and savings
+        Stream search results as each pharmacy completes.
+        Yields progress updates and results progressively.
         """
         all_prices = []
+        completed_pharmacies = []
         pharmacy_results = {}
         errors = []
+        total_pharmacies = len(self.scrapers)
         
-        # Create search tasks for ALL scrapers
+        # Create a queue to collect results as they come in
+        result_queue = asyncio.Queue()
+        
         async def search_scraper(scraper):
+            """Search a single scraper and put result in queue."""
             try:
-                # Use asyncio.wait_for with strict timeout (60 seconds per scraper)
                 result = await asyncio.wait_for(
                     self._search_with_pharmacy(scraper, medicine_name, dosage),
-                    timeout=60.0
+                    timeout=90.0  # 90 seconds max per pharmacy
                 )
-                return (scraper, result, None)
+                await result_queue.put({
+                    "type": "pharmacy_complete",
+                    "pharmacy": scraper.pharmacy_name,
+                    "pharmacy_id": scraper.pharmacy_id,
+                    "results": result,
+                    "error": None
+                })
             except asyncio.TimeoutError:
-                return (scraper, [], f"Timeout after 60s")
+                await result_queue.put({
+                    "type": "pharmacy_complete",
+                    "pharmacy": scraper.pharmacy_name,
+                    "pharmacy_id": scraper.pharmacy_id,
+                    "results": [],
+                    "error": f"Timeout after 90s"
+                })
             except Exception as e:
-                return (scraper, [], str(e))
+                await result_queue.put({
+                    "type": "pharmacy_complete",
+                    "pharmacy": scraper.pharmacy_name,
+                    "pharmacy_id": scraper.pharmacy_id,
+                    "results": [],
+                    "error": str(e)
+                })
         
-        # Run ALL scrapers in parallel
-        tasks = [search_scraper(s) for s in self.scrapers]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # Start all scrapers as concurrent tasks
+        tasks = [asyncio.create_task(search_scraper(s)) for s in self.scrapers]
         
-        # Process results
-        for result in results:
-            if isinstance(result, Exception):
-                continue
-            scraper, prices, error = result
-            if error:
-                errors.append({"pharmacy": scraper.pharmacy_name, "error": error})
-            elif prices:
-                pharmacy_results[scraper.pharmacy_id] = prices
-                all_prices.extend(prices)
+        # Yield initial status
+        yield {
+            "type": "started",
+            "medicine_name": medicine_name,
+            "total_pharmacies": total_pharmacies,
+            "pharmacies": [s.pharmacy_name for s in self.scrapers],
+            "message": f"Starting search across {total_pharmacies} pharmacies..."
+        }
         
-        # Find cheapest and calculate savings
+        # Collect results as they complete
+        completed = 0
+        while completed < total_pharmacies:
+            try:
+                # Wait for next result with 100 second overall timeout
+                result = await asyncio.wait_for(result_queue.get(), timeout=100.0)
+                completed += 1
+                
+                pharmacy_name = result["pharmacy"]
+                pharmacy_id = result["pharmacy_id"]
+                prices = result["results"]
+                error = result["error"]
+                
+                completed_pharmacies.append(pharmacy_name)
+                remaining = total_pharmacies - completed
+                
+                if error:
+                    errors.append({"pharmacy": pharmacy_name, "error": error})
+                elif prices:
+                    pharmacy_results[pharmacy_id] = prices
+                    all_prices.extend(prices)
+                
+                # Yield progress update with this pharmacy's results
+                yield {
+                    "type": "pharmacy_result",
+                    "pharmacy": pharmacy_name,
+                    "pharmacy_id": pharmacy_id,
+                    "results_count": len(prices) if prices else 0,
+                    "prices": [self._price_to_dict(p, pharmacy_id) for p in prices] if prices else [],
+                    "error": error,
+                    "completed": completed,
+                    "remaining": remaining,
+                    "completed_pharmacies": completed_pharmacies,
+                    "message": f"✅ {pharmacy_name} complete ({len(prices)} results). {remaining} pharmacies remaining..." if remaining > 0 else f"✅ All {total_pharmacies} pharmacies searched!"
+                }
+                
+            except asyncio.TimeoutError:
+                # Overall timeout - stop waiting
+                break
+        
+        # Cancel any remaining tasks
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        
+        # Calculate final results
         cheapest = None
         most_expensive = None
         savings = 0.0
         
         if all_prices:
-            # Sort by price
             sorted_prices = sorted(all_prices, key=lambda x: x.price if x.price > 0 else float('inf'))
             valid_prices = [p for p in sorted_prices if p.price > 0]
             
@@ -88,17 +145,36 @@ class PriceSearchService:
                 most_expensive = valid_prices[-1]
                 savings = most_expensive.price - cheapest.price if len(valid_prices) > 1 else 0
         
-        return {
+        # Yield final complete response
+        yield {
+            "type": "complete",
             "success": True,
             "medicine_name": medicine_name,
             "dosage": dosage,
             "total_results": len(all_prices),
             "pharmacies_searched": [s.pharmacy_name for s in self.scrapers],
+            "completed_pharmacies": completed_pharmacies,
             "prices": [self._price_to_dict(p, s) for s, prices in pharmacy_results.items() for p in prices],
             "cheapest": self._price_to_dict(cheapest) if cheapest else None,
             "savings": round(savings, 2),
-            "errors": errors if errors else None
+            "errors": errors if errors else None,
+            "message": f"Search complete! Found {len(all_prices)} results from {len(completed_pharmacies)} pharmacies."
         }
+    
+    async def search_medicine(
+        self, 
+        medicine_name: str, 
+        dosage: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Search for a medicine across all pharmacies IN PARALLEL.
+        Returns final aggregated result (non-streaming).
+        """
+        final_result = None
+        async for result in self.search_medicine_stream(medicine_name, dosage):
+            if result.get("type") == "complete":
+                final_result = result
+        return final_result or {"success": False, "error": "Search failed"}
     
     async def _search_with_pharmacy(
         self, 
@@ -106,10 +182,9 @@ class PriceSearchService:
         medicine_name: str, 
         dosage: Optional[str]
     ) -> List[ScrapedPrice]:
-        """Search a single pharmacy with error handling - reduced retries for speed."""
+        """Search a single pharmacy with error handling."""
         try:
-            # Only 1 retry for faster results
-            return await scraper.search_with_retry(medicine_name, dosage, max_retries=1)
+            return await scraper.search_with_retry(medicine_name, dosage, max_retries=2)
         except Exception as e:
             print(f"Error searching {scraper.pharmacy_name}: {e}")
             return []
@@ -119,14 +194,12 @@ class PriceSearchService:
         if not price:
             return None
         
-        # Find pharmacy info
         pharmacy_name = "Unknown"
         for scraper in self.scrapers:
             if pharmacy_id and scraper.pharmacy_id == pharmacy_id:
                 pharmacy_name = scraper.pharmacy_name
                 break
             elif price.product_url:
-                # Check all pharmacy URLs
                 if "1mg" in price.product_url:
                     pharmacy_name = "1mg"
                 elif "pharmeasy" in price.product_url:
@@ -157,16 +230,7 @@ class PriceSearchService:
         self, 
         medicines: List[Dict[str, str]]
     ) -> Dict[str, Any]:
-        """
-        Search prices for multiple medicines - ALL IN PARALLEL.
-        
-        Args:
-            medicines: List of dicts with 'name' and 'dosage'
-        
-        Returns:
-            Dict with results for each medicine and total savings
-        """
-        # Run all medicine searches in parallel
+        """Search prices for multiple medicines."""
         async def search_one(medicine):
             name = medicine.get("name", "")
             dosage = medicine.get("dosage")
@@ -177,7 +241,6 @@ class PriceSearchService:
         tasks = [search_one(m) for m in medicines]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Filter and process results
         valid_results = []
         total_savings = 0.0
         for result in results:
@@ -199,10 +262,8 @@ class PriceSearchService:
             await scraper.close()
 
 
-# Factory function - create fresh instance each time
 async def get_price_search_service() -> PriceSearchService:
     """Create a new price search service instance."""
-    # Always create fresh instance since scrapers manage their own browser instances
     return PriceSearchService()
 
 
@@ -210,29 +271,22 @@ async def search_medicine_prices(
     medicine_name: str,
     dosage: Optional[str] = None
 ) -> Dict[str, Any]:
-    """
-    Convenience function to search medicine prices.
-    
-    Args:
-        medicine_name: Name of the medicine
-        dosage: Optional dosage specification
-    
-    Returns:
-        Dict with prices and comparison data
-    """
+    """Convenience function to search medicine prices."""
     service = await get_price_search_service()
     return await service.search_medicine(medicine_name, dosage)
 
 
+async def search_medicine_prices_stream(
+    medicine_name: str,
+    dosage: Optional[str] = None
+) -> AsyncGenerator[Dict[str, Any], None]:
+    """Stream medicine price search results progressively."""
+    service = await get_price_search_service()
+    async for result in service.search_medicine_stream(medicine_name, dosage):
+        yield result
+
+
 async def search_multiple_medicines(medicines: List[Dict[str, str]]) -> Dict[str, Any]:
-    """
-    Convenience function to search multiple medicines.
-    
-    Args:
-        medicines: List of medicine dicts
-    
-    Returns:
-        Dict with all results
-    """
+    """Convenience function to search multiple medicines."""
     service = await get_price_search_service()
     return await service.search_multiple_medicines(medicines)

@@ -2,16 +2,20 @@
 Search Routes
 
 Handles medicine price search and comparison with history persistence.
+Includes SSE streaming for progressive results.
 """
 
 from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional, Any
 from datetime import datetime
+import json
+import asyncio
 
 from app.core.security import get_current_user_optional, OptionalUser, CurrentUser
 from app.core.supabase import save_search_history, get_user_search_history, get_search_by_id
-from app.services.price_search import search_medicine_prices, search_multiple_medicines
+from app.services.price_search import search_medicine_prices, search_multiple_medicines, search_medicine_prices_stream
 
 
 router = APIRouter()
@@ -104,6 +108,43 @@ async def search_medicine(
     
     result["search_id"] = search_id
     return result
+
+
+@router.get("/medicine/stream")
+async def search_medicine_stream(
+    medicine_name: str,
+    dosage: Optional[str] = None
+):
+    """
+    Stream search results as each pharmacy completes.
+    Uses Server-Sent Events (SSE) for progressive loading.
+    
+    Frontend receives real-time updates:
+    - started: Search initiated
+    - pharmacy_result: One pharmacy completed (with its results)
+    - complete: All pharmacies done (final aggregated results)
+    """
+    async def event_generator():
+        try:
+            async for result in search_medicine_prices_stream(medicine_name, dosage):
+                # Format as SSE event
+                data = json.dumps(result)
+                yield f"data: {data}\n\n"
+                # Small delay to ensure browser processes events
+                await asyncio.sleep(0.05)
+        except Exception as e:
+            error_data = json.dumps({"type": "error", "error": str(e)})
+            yield f"data: {error_data}\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @router.post("/prescription/{prescription_id}")

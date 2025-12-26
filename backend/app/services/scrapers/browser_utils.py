@@ -33,7 +33,18 @@ async def get_page_with_js(url: str, wait_selector: str = None, timeout: int = 1
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
-                "--no-sandbox"
+                "--no-sandbox",
+                # Memory saving flags for Render's 512MB limit
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--disable-extensions",
+                "--disable-background-networking",
+                "--disable-sync",
+                "--disable-translate",
+                "--single-process",  # Important for low memory
+                "--no-zygote",
+                "--disable-setuid-sandbox",
+                "--js-flags=--max-old-space-size=256"
             ]
         )
         
@@ -162,7 +173,14 @@ async def extract_products_from_page(url: str, selectors: Dict[str, str]) -> Lis
         playwright = await async_playwright().start()
         browser = await playwright.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
+            args=[
+                "--no-sandbox", 
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--single-process",
+                "--no-zygote",
+                "--js-flags=--max-old-space-size=256"
+            ]
         )
         
         context = await browser.new_context(

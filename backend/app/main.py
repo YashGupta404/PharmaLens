@@ -53,13 +53,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS - Allow all origins for development
+# Configure CORS - Allow Vercel frontend and localhost
+cors_origins = [
+    "https://pharma-lens-yash.vercel.app",
+    "https://*.vercel.app",
+    "http://localhost:8080",
+    "http://localhost:3000",
+    "http://localhost:5173",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins in development
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for SSE streaming
+    allow_credentials=False,  # Must be False when origins is *
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # Include API routers

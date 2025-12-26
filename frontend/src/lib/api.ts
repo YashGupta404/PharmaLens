@@ -147,13 +147,33 @@ export async function searchMedicine(
     medicineName: string,
     dosage?: string
 ): Promise<SearchResult> {
-    return apiCall('/search/medicine', {
-        method: 'POST',
-        body: JSON.stringify({
-            medicine_name: medicineName,
-            dosage: dosage || null,
-        }),
-    });
+    console.log(`🔍 [API] Searching medicine: ${medicineName}`);
+    console.log(`🌐 [API] Calling: ${API_BASE_URL}/search/medicine`);
+
+    const startTime = Date.now();
+
+    try {
+        const result = await apiCall<SearchResult>('/search/medicine', {
+            method: 'POST',
+            body: JSON.stringify({
+                medicine_name: medicineName,
+                dosage: dosage || null,
+            }),
+        });
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.log(`✅ [API] Search complete in ${elapsed}s`);
+        console.log(`📊 [API] Found ${result?.total_results || 0} results`);
+        if (result?.cheapest) {
+            console.log(`💰 [API] Cheapest: ₹${result.cheapest.price} at ${result.cheapest.pharmacy_name}`);
+        }
+
+        return result;
+    } catch (error) {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+        console.error(`❌ [API] Search failed after ${elapsed}s:`, error);
+        throw error;
+    }
 }
 
 /**

@@ -29,7 +29,7 @@ const HowItWorks = () => {
         {
             icon: IndianRupee,
             title: "Price Comparison",
-            description: "We search 5 major pharmacies (PharmEasy, 1mg, Netmeds, Apollo, Truemeds) to find the best prices.",
+            description: "We search 4 major pharmacies (PharmEasy, 1mg, Netmeds, Apollo) to find the best prices.",
             color: "bg-green-500"
         }
     ];

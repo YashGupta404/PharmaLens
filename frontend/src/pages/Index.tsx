@@ -94,7 +94,7 @@ const Index = () => {
             break;
           case 'searching':
             setScanStatus('searching');
-            toast.info('💰 AI Agent: Searching 5 pharmacy databases...');
+            toast.info('💰 AI Agent: Searching 4 pharmacy databases...');
             setAgentUpdates([
               { agent: "OCR Interpreter", status: "completed", message: "Done!", progress: 100 },
               { agent: "Medicine Identifier", status: "completed", message: "Done!", progress: 100 },
@@ -184,7 +184,7 @@ const Index = () => {
     setExtractedMedicines(medicines);
     setScanStatus('searching');
     setCompletedPharmacies([]);
-    setRemainingPharmacies(5); // 5 pharmacies total
+    setRemainingPharmacies(4); // 4 pharmacies total
     setStreamMessage('Starting search...');
 
     try {

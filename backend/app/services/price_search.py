@@ -10,19 +10,19 @@ from datetime import datetime
 import asyncio
 import json
 
-from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper, ApolloScraper, TruemedsScraper, ScrapedPrice
+from app.services.scrapers import PharmEasyScraper, OneMgScraper, NetmedsScraper, ApolloScraper, ScrapedPrice
 
 
 class PriceSearchService:
-    """Service for searching and comparing medicine prices across pharmacies."""
+    """Service for searching and comparing medicine prices across 4 pharmacies."""
     
     def __init__(self):
+        # Only 4 pharmacies - Truemeds removed (too slow/unreliable)
         self.scrapers = [
             PharmEasyScraper(),   # HTTP - Fast
             OneMgScraper(),       # Playwright - PRELOADED_STATE
             NetmedsScraper(),     # Playwright - __INITIAL_STATE__
             ApolloScraper(),      # Playwright - DOM
-            TruemedsScraper()     # Playwright - DOM (best prices!)
         ]
     
     async def search_medicine_stream(

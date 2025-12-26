@@ -72,7 +72,7 @@ export function ResultsSection({ results, status, extractedMedicines, completedP
   }
 
   if (status === 'searching') {
-    const allPharmacies = ['PharmEasy', '1mg', 'Netmeds', 'Apollo', 'Truemeds'];
+    const allPharmacies = ['PharmEasy', '1mg', 'Netmeds', 'Apollo'];
 
     return (
       <section className="py-16">

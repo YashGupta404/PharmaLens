@@ -1,0 +1,57 @@
+MIT License
+
+Copyright (c) 2024 PharmaLens - Yash Gupta
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+
+---
+
+ADDITIONAL TERMS FOR EDUCATIONAL USE:
+
+This software is created for educational and demonstration purposes. The
+scraping functionality is intended to show technical capabilities and should
+be used responsibly and in accordance with the Terms of Service of any
+websites accessed.
+
+The creators of this software do not endorse or encourage:
+- Commercial use of scraped data
+- Violation of any website's Terms of Service
+- Any illegal activities using this software
+
+Users are responsible for ensuring their use of this software complies with
+all applicable laws and regulations in their jurisdiction.
+
+---
+
+THIRD-PARTY LICENSES:
+
+This project uses several open-source libraries, each with their own licenses:
+
+- React (MIT License) - Copyright (c) Meta Platforms, Inc.
+- FastAPI (MIT License) - Copyright (c) Sebastián Ramírez
+- LangChain (MIT License) - Copyright (c) LangChain, Inc.
+- BeautifulSoup4 (MIT License) - Copyright (c) Leonard Richardson
+- Playwright (Apache 2.0 License) - Copyright (c) Microsoft Corporation
+- TailwindCSS (MIT License) - Copyright (c) Tailwind Labs, Inc.
+- shadcn/ui (MIT License) - Copyright (c) shadcn
+
+For a complete list of dependencies and their licenses, please refer to:
+- frontend/package.json (for JavaScript/TypeScript dependencies)
+- backend/requirements.txt (for Python dependencies)
